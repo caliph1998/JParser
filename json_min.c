@@ -10,7 +10,7 @@ typedef enum {
 
 typedef struct JsonValue JsonValue;
 
-typdef struct {
+typedef struct {
     size_t len, cap;
     JsonValue **items;
 } JArray;
@@ -95,10 +95,10 @@ static JsonValue *JsonValue_new(JType t) {
     }
     else if (t == JOBJECT)
     {
-        out->as.JObject.len = 0;
-        out->as.JOBJECT.cap = 0;
-        out->as.JOBJECT.keys = NULL;
-        out->as.JOBJECT.values = NULL;
+        out->as.object.len = 0;
+        out->as.object.cap = 0;
+        out->as.object.keys = NULL;
+        out->as.object.values = NULL;
     }
 
     return out;
@@ -119,13 +119,13 @@ static void JsonValue_free(JsonValue* v) {
     }
     else if (v->type == JOBJECT)
     {
-        for (int j = 0; j < v->as.JObject.len; j++)
+        for (int j = 0; j < v->as.object.len; j++)
         {
-            JsonValue_free(v->as.JObject.values[j]);
-            free(v->as.JObject.keys[j]);
+            JsonValue_free(v->as.object.values[j]);
+            free(v->as.object.keys[j]);
         }
-        free(v->as.JObject.keys);
-        free(v->as.JObject.values);
+        free(v->as.object.keys);
+        free(v->as.object.values);
     }
 
     free(v);
