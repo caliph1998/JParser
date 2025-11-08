@@ -1,12 +1,21 @@
 
-CCFLAGS= -g -Wall -Werror -O2
+CFLAGS= -g -Wall -Werror
 LDFLAGS=
-CC="gcc"
+CC=gcc
+SRC=$(wildcard *.c)
+OBJ=$(SRC:.c=.o)
+BIN=app
 
-%.c : %.o
-all : json_min.o
+%.o : %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+	
+all : $(BIN)
+
+$(BIN) : $(OBJ)
+	$(CC) $(OBJ) $(LDFLAGS) -o $@
+
 clean:
-	rm -f *.o
+	rm -f $(OBJ) $(BIN)
 commit : 
 	@if [ "x$M" = 'x' ]; then \
 		echo "Usage: M='your message here.' make commit"; fi

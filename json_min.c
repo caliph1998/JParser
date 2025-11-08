@@ -131,6 +131,28 @@ static void JsonValue_free(JsonValue* v) {
     free(v);
 }
 
+static void array_push(JArray* arr, JsonValue* elem)
+{
+    if (arr->len == arr->cap)
+    {
+        arr->cap = 2 * arr->cap + 1;
+        arr->items = xrealloc(arr->items, sizeof(JsonValue) * arr->cap);
+    }
+    arr->items[arr->len++] = elem;
+}
+
+static void object_put(JObject *obj, char *key, JsonValue *value)
+{
+    if(obj->len == obj->cap)
+    {
+        obj->cap = obj->cap * 2 + 1;
+        obj->keys = xrealloc(obj->keys, sizeof(char*) * obj->cap);
+        obj->values = xrealloc(obj->values, sizeof(JsonValue*) * obj->cap);
+    }
+    obj->keys[obj->len] = key;
+    obj->values[obj->len++] = value;
+}
+
 static int accept_keyword(Parser *p, const char *kw) 
 {
     skip_ws(p);
@@ -155,6 +177,7 @@ static JsonValue *parse_string(Parser *p)
         if (p->s[p->i] == '"')
         {
             size_t end = p->i;
+            p->i++;
             char* buf = malloc(end - start + 1);
             memcpy(buf, p->s + start, end - start);
             JsonValue *v = JsonValue_new(JSTRING);
@@ -233,11 +256,54 @@ static JsonValue *parse_array(Parser *p)
         if (!elem)
             return arr;
         array_push(&arr->as.array, elem);
-
+        if (match(p, ']'))
+            break;
+        if (!match(p, ','))
+        {
+            set_error(p, "expect , or ]");
+            break;
+        }
     }
+    return arr;
 }
 
-static JsonValue *parse_object(Parser *p);
+static JsonValue *parse_object(Parser *p)
+{
+    skip_ws(p);
+    if (!match(p, '{'))
+    {
+        set_error(p, "expected {");
+        return NULL;
+    }
+    JsonValue *obj = JsonValue_new(JOBJECT);
+    skip_ws(p);
+    if (match(p, '}'))
+        return obj;
+
+    while (1)
+    {
+        JsonValue *k = parse_string(p);
+        if (!k || k->type != JSTRING)
+        {
+            set_error(p, "object key must be string");
+            return NULL;
+        }
+        if (!match(p, ':'))
+        {
+            set_error(p, "expected :");
+            return NULL;
+        }
+        JsonValue *v = JsonValue_parse(p);
+        if (!v)
+            break;
+        object_put(&obj->as.object, k->as.string, v);
+        free(k); // key's string kept; JsonValue wrapper freed
+        skip_ws(p);
+        if (match(p,'}')) break;
+        if (!match(p,',')) { set_error(p,"expected , or }"); break; }
+    }
+    return obj;
+}
 
 static JsonValue *JsonValue_parse(Parser *p) {
     skip_ws(p);
@@ -273,4 +339,56 @@ static JsonValue *JsonValue_parse(Parser *p) {
         JsonValue *v = JsonValue_new(JNULL);
         return v;
     }
+    return NULL;
+}
+
+typedef struct {
+    const char *msg;
+    size_t pos;
+} JsonError;
+
+JsonValue *json_parse(const char *text, JsonError *err)
+{
+    Parser p = {.s = text, .i = 0, .n=strlen(text), .err = NULL, .err_pos = 0};
+    JsonValue *v = JsonValue_parse(&p);
+    if (p.err)
+    {
+        if (err)
+        {
+            err->msg = p.err;
+            err->pos = p.err_pos;
+        }
+        return NULL;
+    }
+    skip_ws(&p);
+    if (p.i != p.n)
+    {
+        if (err)
+        {
+            err->msg = "trailing data";
+            err->pos = p.i;
+        }
+        return NULL;
+    }
+    if (err)
+    {
+        err->msg = NULL;
+        err->pos = 0;
+    }
+    return v;
+}
+
+
+int main()
+{
+    const char *txt = "{ \"name\":\"Ali\" }";
+        // "{ \"name\":\"Ali\", \"ok\":true, \"n\":-12.3e+2,"
+        // "  \"arr\":[1,2,3,\"x\"], \"obj\": {\"k\":\"v\"}, \"u\":\"\\u0627\" }";
+    JsonError e;
+    JsonValue *v = json_parse(txt, &e);
+    if (!v)
+    {
+        fprintf(stderr, "Parse error at %zu: %s\n", e.pos, e.msg);
+    }
+    JsonValue_free(v);
 }
