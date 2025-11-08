@@ -79,8 +79,8 @@ static int match(Parser *p, char c) {
     return 0;
 }
 
-static JsonValue *new_value(JType t) {
-    JsonValue *out = malloc(sizeof *out);
+static JsonValue *JsonValue_new(JType t) {
+    JsonValue *out = malloc(sizeof(JsonValue));
     if (!out)
     {
         fprintf(stderr, "OOM\n");
@@ -89,6 +89,46 @@ static JsonValue *new_value(JType t) {
     out->type = t;
     if (t == JARRAY)
     {
-        
+        out->as.array.len = 0;
+        out->as.array.cap = 0;
+        out->as.array.items = NULL;
     }
+    else if (t == JOBJECT)
+    {
+        out->as.JObject.len = 0;
+        out->as.JOBJECT.cap = 0;
+        out->as.JOBJECT.keys = NULL;
+        out->as.JOBJECT.values = NULL;
+    }
+
+    return out;
 }
+
+static void JsonValue_free(JsonValue* v) {
+    if(v->type == JSTRING)
+    {
+        free(v->as.string);
+    }
+    else if (v->type == JARRAY)
+    {
+        for (int j = 0; j < v->as.array.len; j++)
+        {
+            JsonValue_free(v->as.array.items[j]);
+            free(v->as.array.items);
+        }
+    }
+    else if (v->type == JOBJECT)
+    {
+        for (int j = 0; j < v->as.JObject.len; j++)
+        {
+            JsonValue_free(v->as.JObject.values[j]);
+            free(v->as.JObject.keys[j]);
+        }
+        free(v->as.JObject.keys);
+        free(v->as.JObject.values);
+    }
+
+    free(v);
+}
+
+
