@@ -131,4 +131,146 @@ static void JsonValue_free(JsonValue* v) {
     free(v);
 }
 
+static int accept_keyword(Parser *p, const char *kw) 
+{
+    skip_ws(p);
+    size_t k = 0, start = p->i;
+    while(kw[k])
+    {
+        if (start + k >= p->n || p->s[start + k] != kw[k])
+            return 0;
+        k++;
+    }
+    p->i += k;
+    return 1;
+}
 
+static JsonValue *parse_string(Parser *p)
+{
+    skip_ws(p);
+    size_t start = p->i + 1;
+    while(p->i < p->n)
+    {
+        p->i++;
+        if (p->s[p->i] == '"')
+        {
+            size_t end = p->i;
+            char* buf = malloc(end - start + 1);
+            memcpy(buf, p->s + start, end - start);
+            JsonValue *v = JsonValue_new(JSTRING);
+            v->as.string = buf;
+            return v;
+        }
+    }
+    set_error(p, "unterminated string");
+    return NULL;
+}
+
+static JsonValue *parse_number(Parser *p)
+{
+    skip_ws(p);
+    size_t start = p->i;
+    if (p->s[p->i] == '-') 
+        p->i++;
+    if (p->i < p->n && p->s[p->i]=='0') 
+        p->i++;
+    else 
+    { 
+        if (p->i==p->n || !isdigit((unsigned char)p->s[p->i])) 
+            { 
+                set_error(p,"bad number"); 
+                return NULL;
+            }
+        while (p->i<p->n && isdigit((unsigned char)p->s[p->i])) 
+            p->i++; 
+    }
+    if (p->i<p->n && p->s[p->i]=='.') 
+    { 
+        p->i++; 
+        if (p->i==p->n || !isdigit((unsigned char)p->s[p->i])) 
+            { 
+                set_error(p,"bad frac"); 
+                return NULL; 
+            }
+        while (p->i<p->n && isdigit((unsigned char)p->s[p->i])) 
+            p->i++; 
+    }
+    if (p->i<p->n && (p->s[p->i]=='e'||p->s[p->i]=='E')) 
+    {
+        p->i++;
+        if (p->i<p->n && (p->s[p->i]=='+'||p->s[p->i]=='-')) 
+            p->i++;
+        if (p->i==p->n || !isdigit((unsigned char)p->s[p->i])) 
+        { 
+            set_error(p,"bad exp"); 
+            return NULL; 
+        }
+        while (p->i<p->n && isdigit((unsigned char)p->s[p->i])) 
+            p->i++;
+    }
+
+    double val = strtod(p->s + start, NULL);
+    JsonValue *v = JsonValue_new(JNUMBER);
+    v->as.number = val;
+    return v;
+}
+
+static JsonValue *JsonValue_parse(Parser *p); // forward dcl
+static JsonValue *parse_array(Parser *p)
+{
+    if (!match(p,'['))
+    {
+        set_error(p, "expected [");
+        return NULL;
+    }
+    JsonValue *arr = JsonValue_new(JARRAY);
+    skip_ws(p);
+    if (match(p, ']'))
+        return arr;
+    while (1)
+    {
+        JsonValue *elem = JsonValue_parse(p);
+        if (!elem)
+            return arr;
+        array_push(&arr->as.array, elem);
+
+    }
+}
+
+static JsonValue *parse_object(Parser *p);
+
+static JsonValue *JsonValue_parse(Parser *p) {
+    skip_ws(p);
+    if (p->i >= p->n)
+    {
+        set_error(p, "unexpected end");
+        return NULL;
+    }
+
+    char c = p->s[p->i];
+    if (c == '"') 
+        return parse_string(p);
+    if (c == '-' || isdigit((unsigned char)c)) 
+        return parse_number(p);
+    if (c == '[') 
+        return parse_array(p);
+    if (c == '{') 
+        return parse_object(p);
+    if(accept_keyword(p, "true"))
+    {
+        JsonValue *v = JsonValue_new(JBOOL);
+        v->as.boolean = 1;
+        return v;
+    }
+    if (accept_keyword(p, "false"))
+    {
+        JsonValue *v = JsonValue_new(JBOOL);
+        v->as.boolean = 0;
+        return v;
+    }
+    if (accept_keyword(p, "null"))
+    {
+        JsonValue *v = JsonValue_new(JNULL);
+        return v;
+    }
+}
