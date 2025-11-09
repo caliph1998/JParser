@@ -61,7 +61,7 @@ static void skip_ws(Parser *p) {
     while (p->i < p->n && (
         p->s[p->i] == ' ' ||
         p->s[p->i] == '\t' ||
-        p->s[p->i] == '\n' ||
+       p->s[p->i] == '\n' ||
         p->s[p->i] == '\r'
     ))
     {
@@ -111,11 +111,11 @@ static void JsonValue_free(JsonValue* v) {
     }
     else if (v->type == JARRAY)
     {
-        for (int j = 0; j < v->as.array.len; j++)
-        {
-            JsonValue_free(v->as.array.items[j]);
-            free(v->as.array.items);
-        }
+	for (int j = 0; j < v->as.array.len; j++)
+	{
+	    JsonValue_free(v->as.array.items[j]);
+	}
+	    free(v->as.array.items);
     }
     else if (v->type == JOBJECT)
     {
@@ -349,7 +349,7 @@ typedef struct {
 
 JsonValue *json_parse(const char *text, JsonError *err)
 {
-    Parser p = {.s = text, .i = 0, .n=strlen(text), .err = NULL, .err_pos = 0};
+    Parser p = {.s=text, .i=0, .n=strlen(text), .err=NULL, .err_pos=0};
     JsonValue *v = JsonValue_parse(&p);
     if (p.err)
     {
@@ -381,9 +381,8 @@ JsonValue *json_parse(const char *text, JsonError *err)
 
 int main()
 {
-    const char *txt = "{ \"name\":\"Ali\" }";
-        // "{ \"name\":\"Ali\", \"ok\":true, \"n\":-12.3e+2,"
-        // "  \"arr\":[1,2,3,\"x\"], \"obj\": {\"k\":\"v\"}, \"u\":\"\\u0627\" }";
+    const char *txt =  "{ \"name\":\"Ali\", \"ok\":true, \"n\":-12.3e+2,"
+	    	" \"arr\":[1,2,3,\"x\"], \"obj\": {\"k\":\"v\"}}";
     JsonError e;
     JsonValue *v = json_parse(txt, &e);
     if (!v)
