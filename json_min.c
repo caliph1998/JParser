@@ -1,43 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <errno.h>
-
-typedef enum {
-    JNULL, JBOOL, JNUMBER, JSTRING, JARRAY, JOBJECT
-} JType;
-
-typedef struct JsonValue JsonValue;
-
-typedef struct {
-    size_t len, cap;
-    JsonValue **items;
-} JArray;
-
-typedef struct {
-    size_t len, cap;
-    char ** keys;
-    JsonValue **values;
-} JObject;
-
-struct JsonValue {
-    JType type;
-    union {
-        int boolean;
-        double number;
-        char *string;
-        JArray array;
-        JObject object;
-    } as;
-};
-
-typedef struct {
-    const char *s;
-    size_t i, n;
-    const char *err;
-    size_t err_pos;
-} Parser;
+#include "json_min.h"
 
 static void *xrealloc(void *p, size_t n) {
     void *q = realloc(p, n);
@@ -79,7 +40,21 @@ static int match(Parser *p, char c) {
     return 0;
 }
 
-static JsonValue *JsonValue_new(JType t) {
+static int accept_keyword(Parser *p, const char *kw) 
+{
+    skip_ws(p);
+    size_t k = 0, start = p->i;
+    while(kw[k])
+    {
+        if (start + k >= p->n || p->s[start + k] != kw[k])
+            return 0;
+        k++;
+    }
+    p->i += k;
+    return 1;
+}
+
+JsonValue *JsonValue_new(JType t) {
     JsonValue *out = malloc(sizeof(JsonValue));
     if (!out)
     {
@@ -104,7 +79,7 @@ static JsonValue *JsonValue_new(JType t) {
     return out;
 }
 
-static void JsonValue_free(JsonValue* v) {
+void JsonValue_free(JsonValue* v) {
     if(v->type == JSTRING)
     {
         free(v->as.string);
@@ -131,7 +106,7 @@ static void JsonValue_free(JsonValue* v) {
     free(v);
 }
 
-static void array_push(JArray* arr, JsonValue* elem)
+void array_push(JArray* arr, JsonValue* elem)
 {
     if (arr->len == arr->cap)
     {
@@ -141,7 +116,7 @@ static void array_push(JArray* arr, JsonValue* elem)
     arr->items[arr->len++] = elem;
 }
 
-static void object_put(JObject *obj, char *key, JsonValue *value)
+void object_put(JObject *obj, char *key, JsonValue *value)
 {
     if(obj->len == obj->cap)
     {
@@ -153,21 +128,9 @@ static void object_put(JObject *obj, char *key, JsonValue *value)
     obj->values[obj->len++] = value;
 }
 
-static int accept_keyword(Parser *p, const char *kw) 
-{
-    skip_ws(p);
-    size_t k = 0, start = p->i;
-    while(kw[k])
-    {
-        if (start + k >= p->n || p->s[start + k] != kw[k])
-            return 0;
-        k++;
-    }
-    p->i += k;
-    return 1;
-}
 
-static JsonValue *parse_string(Parser *p)
+
+JsonValue *parse_string(Parser *p)
 {
     skip_ws(p);
     size_t start = p->i + 1;
@@ -189,7 +152,7 @@ static JsonValue *parse_string(Parser *p)
     return NULL;
 }
 
-static JsonValue *parse_number(Parser *p)
+JsonValue *parse_number(Parser *p)
 {
     skip_ws(p);
     size_t start = p->i;
@@ -238,8 +201,7 @@ static JsonValue *parse_number(Parser *p)
     return v;
 }
 
-static JsonValue *JsonValue_parse(Parser *p); // forward dcl
-static JsonValue *parse_array(Parser *p)
+JsonValue *parse_array(Parser *p)
 {
     if (!match(p,'['))
     {
@@ -267,7 +229,7 @@ static JsonValue *parse_array(Parser *p)
     return arr;
 }
 
-static JsonValue *parse_object(Parser *p)
+JsonValue *parse_object(Parser *p)
 {
     skip_ws(p);
     if (!match(p, '{'))
@@ -305,7 +267,7 @@ static JsonValue *parse_object(Parser *p)
     return obj;
 }
 
-static JsonValue *JsonValue_parse(Parser *p) {
+JsonValue *JsonValue_parse(Parser *p) {
     skip_ws(p);
     if (p->i >= p->n)
     {
@@ -342,11 +304,6 @@ static JsonValue *JsonValue_parse(Parser *p) {
     return NULL;
 }
 
-typedef struct {
-    const char *msg;
-    size_t pos;
-} JsonError;
-
 JsonValue *json_parse(const char *text, JsonError *err)
 {
     Parser p = {.s=text, .i=0, .n=strlen(text), .err=NULL, .err_pos=0};
@@ -379,15 +336,3 @@ JsonValue *json_parse(const char *text, JsonError *err)
 }
 
 
-int main()
-{
-    const char *txt =  "{ \"name\":\"Ali\", \"ok\":true, \"n\":-12.3e+2,"
-	    	" \"arr\":[1,2,3,\"x\"], \"obj\": {\"k\":\"v\"}}";
-    JsonError e;
-    JsonValue *v = json_parse(txt, &e);
-    if (!v)
-    {
-        fprintf(stderr, "Parse error at %zu: %s\n", e.pos, e.msg);
-    }
-    JsonValue_free(v);
-}
